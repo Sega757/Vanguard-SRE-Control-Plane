@@ -1,0 +1,441 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // Zero-lookup bootstrapped admin check (safe for allow list)
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'segamega757575@gmail.com';
+    }
+
+    // Full admin check (for single-doc get/write operations)
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // 3. Entity Validation Blueprints (Synchronized verbatim with firebase-blueprint.json)
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'photoURL', 'role', 'status',
+          'twoFactorEnabled', 'canRunAgent', 'canApproveIrreversible',
+          'canManageIntegrations', 'canExportAuditLogs', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'photoURL', 'role', 'status',
+          'twoFactorEnabled', 'canRunAgent', 'canApproveIrreversible',
+          'canManageIntegrations', 'canExportAuditLogs', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.role in ['admin', 'operator', 'viewer']
+        && data.status in ['active', 'suspended']
+        && data.twoFactorEnabled is bool
+        && data.canRunAgent is bool
+        && data.canApproveIrreversible is bool
+        && data.canManageIntegrations is bool
+        && data.canExportAuditLogs is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserSecurity(data) {
+      return data.keys().hasAll(['uid', 'totpSecret', 'enabled', 'backupCodes', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'totpSecret', 'enabled', 'backupCodes', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.uid == request.auth.uid
+        && data.totpSecret is string && data.totpSecret.size() >= 16 && data.totpSecret.size() <= 128
+        && data.enabled is bool
+        && data.backupCodes is list && data.backupCodes.size() <= 8
+        && (data.backupCodes.size() == 0 || (data.backupCodes[0] is string && data.backupCodes[0].size() <= 32))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'grantedBy', 'createdAt'])
+        && data.keys().hasOnly(['uid', 'email', 'grantedBy', 'createdAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && isValidId(data.grantedBy)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAgentSession(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'ownerEmail', 'title', 'status', 'anchorSid',
+          'totalSteps', 'totalRollbacks', 'constraintsCount', 'lastMessagePreview',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'ownerEmail', 'title', 'status', 'anchorSid',
+          'totalSteps', 'totalRollbacks', 'constraintsCount', 'lastMessagePreview',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.ownerEmail is string && data.ownerEmail.size() >= 3 && data.ownerEmail.size() <= 254
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.status in ['ACTIVE', 'COMPLETED', 'ESCALATED', 'ROLLBACK_PARTIAL']
+        && data.anchorSid is string && data.anchorSid.size() <= 128
+        && data.totalSteps is number && data.totalSteps >= 0 && data.totalSteps <= 100000
+        && data.totalRollbacks is number && data.totalRollbacks >= 0 && data.totalRollbacks <= 10000
+        && data.constraintsCount is number && data.constraintsCount >= 0 && data.constraintsCount <= 1000
+        && data.lastMessagePreview is string && data.lastMessagePreview.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSessionMessage(data) {
+      return data.keys().hasAll(['id', 'sessionId', 'ownerId', 'role', 'content', 'stepSid', 'createdAt'])
+        && data.keys().hasOnly(['id', 'sessionId', 'ownerId', 'role', 'content', 'stepSid', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.sessionId)
+        && isValidId(data.ownerId)
+        && data.role in ['user', 'assistant', 'system', 'constraint']
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 20000
+        && data.stepSid is string && data.stepSid.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLogEvent(data) {
+      return data.keys().hasAll([
+          'id', 'seq', 'ownerId', 'sessionId', 'eventType', 'severity',
+          'sid', 'pid', 'summary', 'payloadSummary', 'blobHash', 'prevHash',
+          'eventHash', 'latencyMs', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'seq', 'ownerId', 'sessionId', 'eventType', 'severity',
+          'sid', 'pid', 'summary', 'payloadSummary', 'blobHash', 'prevHash',
+          'eventHash', 'latencyMs', 'createdAt'
+        ])
+        && isValidId(data.id)
+        && data.seq is number && data.seq >= 0 && data.seq <= 10000000
+        && isValidId(data.ownerId)
+        && data.sessionId is string && data.sessionId.size() <= 128
+        && data.eventType is string && data.eventType.size() >= 1 && data.eventType.size() <= 64
+        && data.severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']
+        && data.sid is string && data.sid.size() <= 128
+        && data.pid is string && data.pid.size() <= 128
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
+        && data.payloadSummary is string && data.payloadSummary.size() <= 4000
+        && data.blobHash is string && data.blobHash.size() <= 128
+        && data.prevHash is string && data.prevHash.size() <= 128
+        && data.eventHash is string && data.eventHash.size() <= 128
+        && data.latencyMs is number && data.latencyMs >= 0 && data.latencyMs <= 600000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidApiIntegration(data) {
+      return data.keys().hasAll([
+          'id', 'ownerId', 'name', 'baseUrl', 'healthPath', 'authType',
+          'authHeaderName', 'effectClass', 'timeoutMs', 'enabled',
+          'lastStatus', 'lastLatencyMs', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'ownerId', 'name', 'baseUrl', 'healthPath', 'authType',
+          'authHeaderName', 'effectClass', 'timeoutMs', 'enabled',
+          'lastStatus', 'lastLatencyMs', 'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.ownerId)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.baseUrl is string && data.baseUrl.size() >= 8 && data.baseUrl.size() <= 500
+        && data.healthPath is string && data.healthPath.size() <= 200
+        && data.authType in ['none', 'bearer', 'api_key']
+        && data.authHeaderName is string && data.authHeaderName.size() <= 64
+        && data.effectClass in ['read_only', 'idempotent_write', 'irreversible']
+        && data.timeoutMs is number && data.timeoutMs >= 500 && data.timeoutMs <= 120000
+        && data.enabled is bool
+        && data.lastStatus in ['online', 'degraded', 'offline', 'unknown']
+        && data.lastLatencyMs is number && data.lastLatencyMs >= 0 && data.lastLatencyMs <= 120000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidArbiterSettings(data) {
+      return data.keys().hasAll([
+          'ownerId', 'maxRetriesPerAnchor', 'maxTotalRollbacks', 'maxConstraints',
+          'maxRepeatRejects', 'replanSteps', 'controlRunEnabled',
+          'autoApproveIdempotent', 'theme', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'ownerId', 'maxRetriesPerAnchor', 'maxTotalRollbacks', 'maxConstraints',
+          'maxRepeatRejects', 'replanSteps', 'controlRunEnabled',
+          'autoApproveIdempotent', 'theme', 'updatedAt'
+        ])
+        && isValidId(data.ownerId)
+        && data.maxRetriesPerAnchor is number && data.maxRetriesPerAnchor >= 1 && data.maxRetriesPerAnchor <= 20
+        && data.maxTotalRollbacks is number && data.maxTotalRollbacks >= 1 && data.maxTotalRollbacks <= 50
+        && data.maxConstraints is number && data.maxConstraints >= 1 && data.maxConstraints <= 20
+        && data.maxRepeatRejects is number && data.maxRepeatRejects >= 1 && data.maxRepeatRejects <= 20
+        && data.replanSteps is number && data.replanSteps >= 1 && data.replanSteps <= 10
+        && data.controlRunEnabled is bool
+        && data.autoApproveIdempotent is bool
+        && data.theme in ['dark', 'light']
+        && data.updatedAt is timestamp;
+    }
+
+    // 4. Collection Rules
+
+    // Users & PII Isolation
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (existing().uid == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerified()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().uid == request.auth.uid
+        && incoming().email == request.auth.token.email
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().status == 'active'
+        && incoming().twoFactorEnabled == false
+        && (
+          (isBootstrappedAdmin() && incoming().role == 'admin')
+          || (
+            incoming().role == 'operator'
+            && incoming().canRunAgent == true
+            && incoming().canApproveIrreversible == false
+            && incoming().canManageIntegrations == false
+            && incoming().canExportAuditLogs == true
+          )
+        );
+
+      allow update: if isVerified()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Admin RBAC & Status management
+          (
+            isAdmin()
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'role', 'status', 'canRunAgent', 'canApproveIrreversible',
+              'canManageIntegrations', 'canExportAuditLogs', 'updatedAt'
+            ])
+          )
+          ||
+          // Action 2: Owner profile & 2FA toggle (cannot escalate role or permissions)
+          (
+            isOwner(userId)
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'twoFactorEnabled', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+
+      // Isolated 2FA Secret Subcollection (Owner-Only)
+      match /security/{docId} {
+        allow get: if isVerified() && isValidId(userId) && isValidId(docId) && isOwner(userId);
+        allow list: if false;
+        allow create: if isVerified()
+          && isValidId(userId)
+          && isValidId(docId)
+          && isOwner(userId)
+          && isValidUserSecurity(incoming())
+          && incoming().updatedAt == request.time;
+        allow update: if isVerified()
+          && isValidId(userId)
+          && isValidId(docId)
+          && isOwner(userId)
+          && isValidUserSecurity(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['totpSecret', 'enabled', 'backupCodes', 'updatedAt']);
+        allow delete: if isVerified() && isValidId(userId) && isValidId(docId) && isOwner(userId);
+      }
+    }
+
+    // Trusted Admin Registry
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create: if isAdmin()
+        && isValidId(userId)
+        && isValidAdminRecord(incoming())
+        && incoming().uid == userId
+        && incoming().grantedBy == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // Agent Sessions
+    match /sessions/{sessionId} {
+      allow get: if isSignedIn() && isValidId(sessionId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerified()
+        && isValidId(sessionId)
+        && isValidAgentSession(incoming())
+        && incoming().id == sessionId
+        && incoming().ownerId == request.auth.uid
+        && incoming().ownerEmail == request.auth.token.email
+        && incoming().status == 'ACTIVE'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerified()
+        && isValidId(sessionId)
+        && isValidAgentSession(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().ownerEmail == existing().ownerEmail
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().ownerId == request.auth.uid
+            && existing().status in ['ACTIVE', 'ESCALATED']
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'status', 'anchorSid', 'totalSteps', 'totalRollbacks',
+              'constraintsCount', 'lastMessagePreview', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(sessionId) && (existing().ownerId == request.auth.uid || isAdmin());
+
+      // Session Messages (Master Gate checks parent session)
+      match /messages/{messageId} {
+        allow get: if isSignedIn()
+          && isValidId(sessionId)
+          && isValidId(messageId)
+          && (
+            get(/databases/$(database)/documents/sessions/$(sessionId)).data.ownerId == request.auth.uid
+            || isAdmin()
+          );
+
+        allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+
+        allow create: if isVerified()
+          && isValidId(sessionId)
+          && isValidId(messageId)
+          && isValidSessionMessage(incoming())
+          && incoming().id == messageId
+          && incoming().sessionId == sessionId
+          && incoming().ownerId == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/sessions/$(sessionId))
+          && get(/databases/$(database)/documents/sessions/$(sessionId)).data.ownerId == request.auth.uid;
+
+        allow update: if false;
+        allow delete: if isAdmin() && isValidId(sessionId) && isValidId(messageId);
+      }
+    }
+
+    // Immutable Append-Only Transponder Audit Logs
+    match /auditLogs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerified()
+        && isValidId(logId)
+        && isValidAuditLogEvent(incoming())
+        && incoming().id == logId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if false;
+    }
+
+    // External API Integrations
+    match /integrations/{integrationId} {
+      allow get: if isSignedIn() && isValidId(integrationId) && (existing().ownerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().ownerId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerified()
+        && isValidId(integrationId)
+        && isValidApiIntegration(incoming())
+        && incoming().id == integrationId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerified()
+        && isValidId(integrationId)
+        && isValidApiIntegration(incoming())
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().ownerId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'baseUrl', 'healthPath', 'authType', 'authHeaderName',
+              'effectClass', 'timeoutMs', 'enabled', 'lastStatus', 'lastLatencyMs', 'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(integrationId) && (existing().ownerId == request.auth.uid || isAdmin());
+    }
+
+    // Per-User Arbiter Settings
+    match /settings/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+
+      allow create: if isVerified()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidArbiterSettings(incoming())
+        && incoming().ownerId == userId
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerified()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidArbiterSettings(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'maxRetriesPerAnchor', 'maxTotalRollbacks', 'maxConstraints',
+          'maxRepeatRejects', 'replanSteps', 'controlRunEnabled',
+          'autoApproveIdempotent', 'theme', 'updatedAt'
+        ]);
+
+      allow delete: if isVerified() && isValidId(userId) && isOwner(userId);
+    }
+  }
+}

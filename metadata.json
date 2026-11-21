@@ -1,0 +1,6 @@
+{
+  "name": "Vanguard SRE — Панель управления агентом",
+  "description": "Веб-интерфейс реального времени для автономного SRE-агента с потоковым чатом по WebSockets, визуализацией DAG и откатов, дашбордом метрик, 2FA, Google-авторизацией и RBAC-администрированием.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

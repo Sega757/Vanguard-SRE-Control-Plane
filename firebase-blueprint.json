@@ -1,0 +1,484 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated operator profile and RBAC permissions for Vanguard SRE.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "operator", "viewer"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "suspended"]
+        },
+        "twoFactorEnabled": {
+          "type": "boolean"
+        },
+        "canRunAgent": {
+          "type": "boolean"
+        },
+        "canApproveIrreversible": {
+          "type": "boolean"
+        },
+        "canManageIntegrations": {
+          "type": "boolean"
+        },
+        "canExportAuditLogs": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "photoURL",
+        "role",
+        "status",
+        "twoFactorEnabled",
+        "canRunAgent",
+        "canApproveIrreversible",
+        "canManageIntegrations",
+        "canExportAuditLogs",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserSecurity": {
+      "title": "UserSecurity",
+      "description": "Isolated TOTP 2FA secret and backup codes strictly accessible only by the account owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "totpSecret": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "backupCodes": {
+          "type": "array",
+          "description": "Bounded list of up to 8 hashed or formatted recovery codes"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "totpSecret", "enabled", "backupCodes", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted admin registry granting RBAC management permissions.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "grantedBy": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "grantedBy", "createdAt"]
+    },
+    "AgentSession": {
+      "title": "AgentSession",
+      "description": "Persistent Vanguard SRE Arbiter execution session with anchor and rollback metadata.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerEmail": {
+          "type": "string",
+          "maxLength": 254
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ACTIVE", "COMPLETED", "ESCALATED", "ROLLBACK_PARTIAL"]
+        },
+        "anchorSid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "totalSteps": {
+          "type": "number"
+        },
+        "totalRollbacks": {
+          "type": "number"
+        },
+        "constraintsCount": {
+          "type": "number"
+        },
+        "lastMessagePreview": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "ownerEmail",
+        "title",
+        "status",
+        "anchorSid",
+        "totalSteps",
+        "totalRollbacks",
+        "constraintsCount",
+        "lastMessagePreview",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SessionMessage": {
+      "title": "SessionMessage",
+      "description": "Chat message or constraint notice persisted under an agent session.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant", "system", "constraint"]
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "stepSid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "sessionId", "ownerId", "role", "content", "stepSid", "createdAt"]
+    },
+    "AuditLogEvent": {
+      "title": "AuditLogEvent",
+      "description": "Immutable Transponder telemetry event with HMAC chain hashes and severity.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "seq": {
+          "type": "number"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "sessionId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "eventType": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
+        },
+        "sid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "pid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "payloadSummary": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "blobHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "prevHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "eventHash": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "latencyMs": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "seq",
+        "ownerId",
+        "sessionId",
+        "eventType",
+        "severity",
+        "sid",
+        "pid",
+        "summary",
+        "payloadSummary",
+        "blobHash",
+        "prevHash",
+        "eventHash",
+        "latencyMs",
+        "createdAt"
+      ]
+    },
+    "ApiIntegration": {
+      "title": "ApiIntegration",
+      "description": "External API service endpoint connected to the agent ToolSchema and health monitor.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "baseUrl": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "healthPath": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "authType": {
+          "type": "string",
+          "enum": ["none", "bearer", "api_key"]
+        },
+        "authHeaderName": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "effectClass": {
+          "type": "string",
+          "enum": ["read_only", "idempotent_write", "irreversible"]
+        },
+        "timeoutMs": {
+          "type": "number"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "lastStatus": {
+          "type": "string",
+          "enum": ["online", "degraded", "offline", "unknown"]
+        },
+        "lastLatencyMs": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "ownerId",
+        "name",
+        "baseUrl",
+        "healthPath",
+        "authType",
+        "authHeaderName",
+        "effectClass",
+        "timeoutMs",
+        "enabled",
+        "lastStatus",
+        "lastLatencyMs",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ArbiterSettings": {
+      "title": "ArbiterSettings",
+      "description": "User-scoped Arbiter rollback budget, verifier policy, and console appearance settings.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "maxRetriesPerAnchor": {
+          "type": "number"
+        },
+        "maxTotalRollbacks": {
+          "type": "number"
+        },
+        "maxConstraints": {
+          "type": "number"
+        },
+        "maxRepeatRejects": {
+          "type": "number"
+        },
+        "replanSteps": {
+          "type": "number"
+        },
+        "controlRunEnabled": {
+          "type": "boolean"
+        },
+        "autoApproveIdempotent": {
+          "type": "boolean"
+        },
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light"]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "ownerId",
+        "maxRetriesPerAnchor",
+        "maxTotalRollbacks",
+        "maxConstraints",
+        "maxRepeatRejects",
+        "replanSteps",
+        "controlRunEnabled",
+        "autoApproveIdempotent",
+        "theme",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile and RBAC permissions (isolated to owner or admin)."
+    },
+    "/users/{userId}/security/{docId}": {
+      "schema": { "$ref": "#/entities/UserSecurity" },
+      "description": "Owner-only TOTP 2FA secret and backup codes."
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Trusted admin role assignments."
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/AgentSession" },
+      "description": "Active and historical Vanguard SRE agent sessions."
+    },
+    "/sessions/{sessionId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/SessionMessage" },
+      "description": "Messages and constraint notices belonging to a parent session."
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLogEvent" },
+      "description": "Append-only Transponder event log entries."
+    },
+    "/integrations/{integrationId}": {
+      "schema": { "$ref": "#/entities/ApiIntegration" },
+      "description": "External API integrations configured by operators or admins."
+    },
+    "/settings/{userId}": {
+      "schema": { "$ref": "#/entities/ArbiterSettings" },
+      "description": "Per-user Arbiter configuration and UI preferences."
+    }
+  }
+}
