@@ -311,5 +311,4 @@ python3 -m py_compile vanguard_bridge_agent.py
 
 ## License
 
-Intended under **Apache-2.0** (matching the SPDX headers in the source tree). Note: a standalone `LICENSE` file is not currently present in the repository root and should be added prior to public release.
 Licensed under the [Apache License 2.0](./LICENSE).
