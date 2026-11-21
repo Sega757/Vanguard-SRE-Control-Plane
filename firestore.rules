@@ -34,7 +34,7 @@ service cloud.firestore {
 
     // Zero-lookup bootstrapped admin check (safe for allow list)
     function isBootstrappedAdmin() {
-      return isVerified() && request.auth.token.email == 'segamega757575@gmail.com';
+      return isVerified() && request.auth.token.email == 'admin@example.com';
     }
 
     // Full admin check (for single-doc get/write operations)
